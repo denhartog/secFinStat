@@ -7,8 +7,8 @@ Created on Fri Jun 10 07:57:21 2016
 This file contains a function created for the financial statements data from 
 SEC filings found at 
 https://www.sec.gov/dera/data/financial-statement-data-sets.html.
-The function extracts data from the sub.txt file in the directory in which it 
-is called, organizes the data and places the data in the fs_db database.
+The function extracts data from the sub.txt file, organizes the data and 
+puts it in the fs_db database.
 """
 
 import csv
@@ -57,7 +57,7 @@ def remove_hy(adsh):
 def sub_data():
     # extract data          
     sub = []
-    with open("2016q1/sub.txt", "r") as f:
+    with open("sub.txt", "r") as f:
         reader = csv.reader(f, delimiter = "\t")
         for row in reader:
             sub.append(row)                
