@@ -78,7 +78,7 @@ def sub_data():
         orgd[field] = cols[idx]
         idx += 1
     
-    # remove any escape "'" and remove extra backslashes
+    # escape any "'" and remove extra backslashes
     for field in orgd:
         for idx in range(len(orgd[field])):
             orgd[field][idx] = clean(orgd[field][idx])
