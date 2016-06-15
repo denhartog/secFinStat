@@ -57,10 +57,13 @@ def remove_hy(adsh):
 def sub_data():
     # extract data          
     sub = []
-    with open("sub.txt", "r") as f:
+    with open("2016q1/sub.txt", "r") as f:
         reader = csv.reader(f, delimiter = "\t")
         for row in reader:
-            sub.append(row)                
+            sub.append(row)  
+
+    # print number of rows in data
+    print "Rows in file:", len(sub)              
     
     # arrange data by column
     header = sub[0]
@@ -78,124 +81,109 @@ def sub_data():
         orgd[field] = cols[idx]
         idx += 1
     
-    # escape any "'" and remove extra backslashes
+    # escape any "'", remove extra backslashes, remove hyphens from adsh,
+    # check for null fye and check for out of range years in fy
     for field in orgd:
         for idx in range(len(orgd[field])):
             orgd[field][idx] = clean(orgd[field][idx])
+            if field == "adsh":
+                orgd[field][idx] = remove_hy(orgd[field][idx])
+            elif field == "fye":
+                orgd[field][idx] = check_null_date(orgd[field][idx]) 
+            elif field == "fy":
+                orgd[field][idx] = check_range(orgd[field][idx])
             
         
     # get mysql password
-    fname = open("pw.txt", "r")
-    pw = fname.read()
+    f = open("pw.txt", "r")
+    pw = f.read()
+    f.close()
     
     # connect to mysql
     conn = MySQLdb.connect(host = "localhost", user = "root", passwd = pw, 
                            db = "fs_db")
     cur = conn.cursor()
     
-    
-    # insert form names not already in 'forms' table
-    for form_type in orgd["form"]:
-        cur.execute("INSERT IGNORE INTO forms (type) VALUES ('"+form_type+"');")
-    conn.commit()
-    
-    
-    # insert data into 'firms_current' table
+    count = 1
     for row in range(len(sub) - 1):
+        print "Entering row:", count
+        
+        # insert data into 'forms' table
+        form = orgd["form"][row]
+        cur.execute("INSERT IGNORE INTO forms (type) VALUES ('"+form+"');")
+    
+    
+        # insert data into 'firms_current' table
         cik, name, sic = orgd["cik"][row], orgd["name"][row], orgd["sic"][row]
         countryinc, stprinc = orgd["countryinc"][row], orgd["stprinc"][row]
         
-        # prepare for empty 'sic' observations        
-        if sic == "":
-            sic = "0"
-
         sql = """INSERT IGNORE INTO firms_current (cik, name, sic, countryinc, 
-        stprinc) VALUES ("""+cik+", \""+name+"\", "+sic+", '"+countryinc+"', '"+stprinc+"');"        
-        print sql        
+        stprinc) VALUES ("""+cik+", \""+name+"\", '"+sic+"', '"+countryinc+"', '"+stprinc+"');"        
+
         cur.execute(sql)
-                                                
-    # commit changes
-    conn.commit()
  
     
-    # insert data into 'firms_past' table
-    for row in range(len(sub) - 1):
-        if orgd["former"][row] != "":
-            changed, former = orgd["changed"][row], orgd["former"][row]
-            cik = orgd["cik"][row] 
-            cur.execute("SELECT firm_id FROM firms_current WHERE cik = "+cik+";")
-            firm_id = str(cur.fetchone()[0])
-            sql = """INSERT IGNORE INTO firms_past (firm_id_fp, former, changed) 
-            VALUES ("""+firm_id+", '"+former+"', "+changed+");"
-            print sql
-            cur.execute(sql)
-            
-    conn.commit()
-    
-
-    # insert data into 'subs' table
-    for row in range(len(sub) - 1):
+        # insert data into 'subs' table
         detail, afs, wksi = orgd["detail"][row], orgd["afs"][row], orgd["wksi"][row]
-        nciks, period, form = orgd["nciks"][row], orgd["period"][row], orgd["form"][row]
-        fp, filed, cik = orgd["fp"][row], orgd["filed"][row], orgd["cik"][row]
+        nciks, period, fye = orgd["nciks"][row], orgd["period"][row], orgd["fye"][row]
+        fp, filed, fy = orgd["fp"][row], orgd["filed"][row], orgd["fy"][row]
         accepted, prevrpt = orgd["accepted"][row], orgd["prevrpt"][row]
-        
-        adsh = remove_hy(orgd["adsh"][row])
-        
-        fye = check_null_date(orgd["fye"][row])        
-        
-        fy = check_range(orgd["fy"][row])        
+        adsh = orgd["adsh"][row]
         
         aciks_partial = str(has_partial(orgd["aciks"][row]))
     
         cur.execute("SELECT firm_id FROM firms_current WHERE cik = "+cik+";")
-        firm_id_subs = str(cur.fetchone()[0])
+        firm_id = str(cur.fetchone()[0])
         
         cur.execute("SELECT form_id FROM forms WHERE type = '"+form+"';")
-        form_id_subs = str(cur.fetchone()[0])
+        form_id = str(cur.fetchone()[0])
         
         sql = """INSERT IGNORE INTO subs (adsh, firm_id_subs, form_id_subs, 
         afs, wksi, fye, period, fy, fp, filed, accepted, prevrpt, detail, nciks, 
         aciks_partial) VALUES (
-        """+adsh+", "+firm_id_subs+", "+form_id_subs+", '"+afs+"', "+wksi+", '"+fye+"', "+period+", "+fy+", '"+fp+"', "+filed+", '"+accepted+"', "+prevrpt+", "+detail+", "+nciks+", "+aciks_partial+");"
-                
+        """+adsh+", "+firm_id+", "+form_id+", '"+afs+"', "+wksi+", '"+fye+"', "+period+", "+fy+", '"+fp+"', "+filed+", '"+accepted+"', "+prevrpt+", "+detail+", "+nciks+", "+aciks_partial+");"
+                        
         cur.execute(sql)
         
-    conn.commit()
+        count += 1
+        
 
-    # insert data into 'aciks' table
-    for row in range(len(sub) - 1):
-        if orgd["nciks"][row] > 1:
-            adsh = remove_hy(orgd["adsh"][row])
-            cur.execute("SELECT sub_id FROM subs WHERE adsh = "+adsh+";")
-            sub_id_aciks = str(cur.fetchone()[0])
-            
-            cik_parent = orgd["cik"][row]
-            sql = "SELECT firm_id FROM firms_current WHERE cik = "+cik_parent+";"
+        # insert data into 'firms_past' table
+        if orgd["former"][row] != "":
+            changed, former = orgd["changed"][row], orgd["former"][row]
+
+            sql = """INSERT IGNORE INTO firms_past (firm_id_fp, former, changed) 
+            VALUES ("""+firm_id+", '"+former+"', "+changed+");"
+
             cur.execute(sql)
-            firm_id_parent = str(cur.fetchone()[0])
+            
+
+        # insert data into 'aciks' table
+        if nciks > 1:
+            cur.execute("SELECT sub_id FROM subs WHERE adsh = "+adsh+";")
+            sub_id = str(cur.fetchone()[0])
             
             aciks = orgd["aciks"][row].split(" ")
-            for cik in aciks:
-                cik = str(cik)
-                if cik != "":
-                    while len(cik) < 10:
-                        cik = "0"+cik
-                    sql = "SELECT firm_id FROM firms_current WHERE cik = "+cik+";"
-                    print sql
+            for sub_cik in aciks:
+                sub_cik = str(sub_cik)
+                if sub_cik != "":
+                    while len(sub_cik) < 10:
+                        sub_cik = "0"+sub_cik
+                    sql = "SELECT firm_id FROM firms_current WHERE cik = "+sub_cik+";"
                     cur.execute(sql)
+                    
                     try:
                         firm_id_subsid = str(cur.fetchone()[0])
                         sql = """INSERT IGNORE INTO aciks (sub_id_aciks, 
                         firm_id_parent, firm_id_subsid) VALUES (
-                        """+sub_id_aciks+", "+firm_id_parent+", "+firm_id_subsid+");"
-                        print sql                    
+                        """+sub_id+", "+firm_id+", "+firm_id_subsid+");"
                         cur.execute(sql)
+                        
                     except TypeError:
                         sql = """INSERT IGNORE INTO aciks (sub_id_aciks, 
                         firm_id_parent, cik_subsid) VALUES (
-                        """+sub_id_aciks+", "+firm_id_parent+", "+cik+");"
-                        print sql
+                        """+sub_id+", "+firm_id+", "+sub_cik+");"
+
                         cur.execute(sql)
                         
             
@@ -204,4 +192,4 @@ def sub_data():
     
                 
     
-    
+sub_data()    

@@ -30,10 +30,13 @@ def clean(esc_str):
 def tag_data():
     # extract data
     tag = []
-    with open("tag.txt", "r") as f:
+    with open("2016q1/tag.txt", "r") as f:
         reader = csv.reader(f, delimiter = "\t")
         for row in reader:
             tag.append(row)
+            
+    # print number of rows in data
+    print "Rows in file:", len(tag)
                 
     # arrange data by column
     header = tag[0]
@@ -58,8 +61,9 @@ def tag_data():
             
        
     # get mysql password
-    fname = open("pw.txt", "r")
-    pw = fname.read()
+    f = open("pw.txt", "r")
+    pw = f.read()
+    f.close()
     
     # connect to mysql
     conn = MySQLdb.connect(host = "localhost", user = "root", passwd = pw, 
@@ -67,21 +71,52 @@ def tag_data():
     cur = conn.cursor()
     
     
-    # insert data into 'tag' table
+    count = 1
     for row in range(len(tag) - 1):
+        print "Entering row:", count
+        
+        # insert data into 'tag_version' table
+        version = orgd["version"][row]
+        
+        cur.execute("""INSERT IGNORE INTO tag_version (version) VALUES (
+        '"""+version+"');")
+        
+        # insert data into 'docs' table
+        doc_short = ""
+        doc_long = ""
+        doc = orgd["doc"][row]
+        if len(doc) > 512:
+            doc_long = doc
+        else:
+            doc_short = doc
+        cur.execute("""INSERT IGNORE INTO docs (doc_short, doc_long) VALUES (
+        '"""+doc_short+"', '"+doc_long+"');")
+
+        # insert data into 'tags' table
         tag, custom = orgd["tag"][row], orgd["custom"][row]
         abstract, tlabel = orgd["abstract"][row], orgd["tlabel"][row]
         
-        cur.execute("""INSERT IGNORE INTO tags (tag, custom, abstract, tlabel) 
-        VALUES ('"""+tag+"', "+custom+", "+abstract+", '"+tlabel+"');")
+        cur.execute("""SELECT version_id FROM tag_version WHERE version = 
+        '"""+version+"';")
+        version_id_tags = str(cur.fetchone()[0])
         
-    conn.commit()
+        if len(doc_long) > 0: 
+            cur.execute("""SELECT doc_id FROM docs WHERE doc_long = 
+            '"""+doc_long+"';")
+            doc_id_tags = str(cur.fetchone()[0])
+        else:
+            cur.execute("""SELECT doc_id FROM docs WHERE doc_short =
+            '"""+doc_short+"';")
+            doc_id_tags = str(cur.fetchone()[0])
+        
+        cur.execute("""INSERT IGNORE INTO tags (tag, version_id_tags, custom, 
+        abstract, tlabel, doc_id_tags) VALUES (
+        '"""+tag+"', "+version_id_tags+", "+custom+", "+abstract+", '"+tlabel+"', "+doc_id_tags+");")
+                
     
-    # insert data into 'not_abs_tag_info' table
-    for row in range(len(tag) - 1):
-        abstract = orgd["abstract"][row]
+        # insert data into 'not_abs_tag_info' table
         if int(abstract) == False:
-            tag, datatype = orgd["tag"][row], orgd["datatype"][row]
+            datatype = orgd["datatype"][row]
             iord, crdr = orgd["iord"][row], orgd["crdr"][row]
             
             cur.execute("SELECT tag_id FROM tags WHERE tag = '"+tag+"';")            
@@ -91,24 +126,12 @@ def tag_data():
             datatype, iord, crdr) VALUES (
             """+tag_id_noabs+", '"+datatype+"', '"+iord+"', '"+crdr+"');")
             
-    conn.commit()
-    
-    # insert data into 'stand_tag_ver' table
-    for row in range(len(tag) - 1):
-        custom = orgd["custom"][row]
-        if int(custom) == False:
-            version = orgd["version"][row]
+        count += 1
             
-            tag = orgd["tag"][row]
-            cur.execute("SELECT tag_id FROM tags WHERE tag = '"+tag+"';")
-            tag_id_stand = str(cur.fetchone()[0])
-            
-            cur.execute("""INSERT IGNORE INTO stand_tag_ver (tag_id_stand, 
-            version) VALUES (
-            """+tag_id_stand+", '"+version+"');")
     
     conn.commit()
     
     conn.close()
         
     
+tag_data()

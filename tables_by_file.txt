@@ -10,7 +10,8 @@ SUB:
 TAG:
 	tags
 	not_abs_tag_info
-	stand_tag_ver
+	tag_version
+	docs
 
 NUM:
 	numbers
