@@ -106,7 +106,6 @@ def sub_data():
     
     count = 1
     for row in range(len(sub) - 1):
-        print "Entering row:", count
         
         # insert data into 'forms' table
         form = orgd["form"][row]
@@ -132,10 +131,12 @@ def sub_data():
         
         aciks_partial = str(has_partial(orgd["aciks"][row]))
     
-        cur.execute("SELECT firm_id FROM firms_current WHERE cik = "+cik+";")
+        cur.execute("""SELECT firm_id FROM firms_current WHERE cik = 
+        """+cik+" LIMIT 1;")
         firm_id = str(cur.fetchone()[0])
         
-        cur.execute("SELECT form_id FROM forms WHERE type = '"+form+"';")
+        cur.execute("""SELECT form_id FROM forms WHERE type = 
+        '"""+form+"' LIMIT 1;")
         form_id = str(cur.fetchone()[0])
         
         sql = """INSERT IGNORE INTO subs (adsh, firm_id_subs, form_id_subs, 
@@ -160,7 +161,8 @@ def sub_data():
 
         # insert data into 'aciks' table
         if nciks > 1:
-            cur.execute("SELECT sub_id FROM subs WHERE adsh = "+adsh+";")
+            cur.execute("""SELECT sub_id FROM subs WHERE adsh = 
+            """+adsh+" LIMIT 1;")
             sub_id = str(cur.fetchone()[0])
             
             aciks = orgd["aciks"][row].split(" ")
@@ -169,7 +171,8 @@ def sub_data():
                 if sub_cik != "":
                     while len(sub_cik) < 10:
                         sub_cik = "0"+sub_cik
-                    sql = "SELECT firm_id FROM firms_current WHERE cik = "+sub_cik+";"
+                    sql = """SELECT firm_id FROM firms_current WHERE cik = 
+                    """+sub_cik+" LIMIT 1;"
                     cur.execute(sql)
                     
                     try:
@@ -185,6 +188,10 @@ def sub_data():
                         """+sub_id+", "+firm_id+", "+sub_cik+");"
 
                         cur.execute(sql)
+                        
+            if count % 500 == 0:
+                conn.commit()
+                print count, "rows committed"
                         
             
     conn.commit()

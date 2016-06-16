@@ -73,52 +73,22 @@ def tag_data():
     
     count = 1
     for row in range(len(tag) - 1):
-        print "Entering row:", count
-        
-        # insert data into 'tag_version' table
-        version = orgd["version"][row]
-        
-        cur.execute("""INSERT IGNORE INTO tag_version (version) VALUES (
-        '"""+version+"');")
         
         # insert data into 'docs' table
         doc = orgd["doc"][row]
-        if len(doc) > 512:
-            cur.execute("""INSERT INTO docs (doc_long) VALUES (
-            '"""+doc+"');")
-        else:
-            cur.execute("SELECT doc_id FROM docs WHERE doc_short = '"+doc+"';")
-            try:
-                cur.fetchone()[0]
-            except TypeError:
-                cur.execute("""INSERT INTO docs (doc_short) VALUES (
-                '"""+doc+"');")
+        cur.execute("INSERT INTO docs (doc) VALUES ('"+doc+"');")
 
-        # insert data into 'tags' table
-        tag = orgd["tag"][row]
-                
-        cur.execute("""SELECT version_id FROM tag_version WHERE version = 
-        '"""+version+"';")
-        version_id_tags = str(cur.fetchone()[0])
+        # insert data into 'tag_info' table
+        tag, version = orgd["tag"][row], orgd["version"][row]                      
+        abstract, tlabel = orgd["abstract"][row], orgd["tlabel"][row]
+        custom = orgd["custom"][row]
         
-        cur.execute("SELECT tag_id FROM tags WHERE tag = '"+tag+"""' AND 
-        version_id_tags = """+version_id_tags+";")
-        try:
-            cur.fetchone()[0]
-        except TypeError:
-            abstract, tlabel = orgd["abstract"][row], orgd["tlabel"][row]
-            custom = orgd["custom"][row]
-            
-            if len(doc) > 512: 
-                fld = "doc_long"
-            else:
-                fld = "doc_short"
-            cur.execute("SELECT doc_id FROM docs WHERE "+fld+" ='"+doc+"';")
-            doc_id_tags = str(cur.fetchone()[0])
-            
-            cur.execute("""INSERT INTO tags (tag, version_id_tags, custom, 
-            abstract, tlabel, doc_id_tags) VALUES (
-            '"""+tag+"', "+version_id_tags+", "+custom+", "+abstract+", '"+tlabel+"', "+doc_id_tags+");")
+        cur.execute("SELECT LAST_INSERT_ID();")
+        doc_id_ti = str(cur.fetchone()[0])
+        
+        cur.execute("""INSERT INTO tag_info (tag, version, custom, abstract, 
+        tlabel, doc_id_ti) VALUES (
+        '"""+tag+"', '"+version+"', "+custom+", "+abstract+", '"+tlabel+"', "+doc_id_ti+");")
                 
     
         # insert data into 'not_abs_tag_info' table
@@ -126,16 +96,23 @@ def tag_data():
             datatype = orgd["datatype"][row]
             iord, crdr = orgd["iord"][row], orgd["crdr"][row]
             
-            cur.execute("SELECT tag_id FROM tags WHERE tag = '"+tag+"""' AND
-            version_id_tags = """+version_id_tags+";")            
-            tag_id_noabs = str(cur.fetchone()[0])
+            cur.execute("SELECT LAST_INSERT_ID();")            
+            tag_info_id_noabs = str(cur.fetchone()[0])
             
-            cur.execute("""INSERT IGNORE INTO not_abs_tag_info (tag_id_noabs, 
-            datatype, iord, crdr) VALUES (
-            """+tag_id_noabs+", '"+datatype+"', '"+iord+"', '"+crdr+"');")
+            cur.execute("""INSERT IGNORE INTO not_abs_tag_info (
+            tag_info_id_noabs, datatype, iord, crdr) VALUES (
+            """+tag_info_id_noabs+", '"+datatype+"', '"+iord+"', '"+crdr+"');")
             
+        # insert data into 'tags' table
+        cur.execute("INSERT IGNORE INTO tags (tag) VALUES ('"+tag+"');")
+        
+        #insert data into 'versions' table
+        cur.execute("""INSERT IGNORE INTO versions (version) VALUES (
+        '"""+version+"');")
+        
         if count % 5000 == 0:
             conn.commit()
+            print count, "rows committed"
             
         count += 1
             
