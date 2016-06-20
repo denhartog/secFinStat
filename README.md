@@ -3,6 +3,7 @@ Repo for apps and analyses using SEC financial statement data found at
 https://www.sec.gov/dera/data/financial-statement-data-sets.html.
 
 Currently contains the following items: 
+
 *download_fs_data.py - downloads and unzips all data at the above url not currently in the working directory
 *fs_db_diag.png - EER diagram of database used to organize and store data, fs_db
 *tables_by_file.txt - simple list of tables in fs_db organized by the files which contain relevant data
