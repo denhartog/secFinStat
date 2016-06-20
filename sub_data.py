@@ -14,6 +14,7 @@ puts it in the fs_db database.
 import csv
 import MySQLdb
 import re
+import time
 
 
 # helper functions
@@ -52,18 +53,31 @@ def remove_hy(adsh):
     adsh = re.sub("-", "", adsh)
     return adsh
 
+def convert_time(secs):
+    time_str = ""
+    hours = secs / 3600
+    if hours > 0:
+        time_str += (str(hours)+" hours, ")
+    minutes = (secs % 3600) / 60
+    if hours > 0 or minutes > 0:
+        time_str += (str(minutes)+" minutes, ")
+    seconds = secs % 60
+    time_str += (str(seconds)+" seconds")
+    return time_str
+    
 
-
-def sub_data():
+# primary function
+def sub_data(sub_dir):
     # extract data          
     sub = []
-    with open("2016q1/sub.txt", "r") as f:
+    with open(sub_dir+"/sub.txt", "r") as f:
         reader = csv.reader(f, delimiter = "\t")
         for row in reader:
             sub.append(row)  
 
     # print number of rows in data
-    print "Rows in file:", len(sub)              
+    total_rows = len(sub)
+    print "Rows in file:", total_rows, "\n"
     
     # arrange data by column
     header = sub[0]
@@ -105,6 +119,8 @@ def sub_data():
     cur = conn.cursor()
     
     count = 1
+    start_time = time.time()
+    print "Entering data into database", "\n"
     for row in range(len(sub) - 1):
         
         # insert data into 'forms' table
@@ -189,14 +205,22 @@ def sub_data():
 
                         cur.execute(sql)
                         
-            if count % 500 == 0:
+        if total_rows > 100:
+            if count % (total_rows / 100) == 0:
                 conn.commit()
                 print count, "rows committed"
-                        
+                cur_time = time.time()
+                elapsed_time = cur_time - start_time
+                total_time = elapsed_time * (float(total_rows) / float(count))
+                remain_time = total_time - elapsed_time
+                print "Elapsed time:", convert_time(int(elapsed_time))
+                print "Estimated time to completion:", convert_time(int(remain_time)), "\n"
+           
+        count += 1             
             
     conn.commit()
     conn.close()
     
                 
     
-sub_data()    
+    

@@ -13,6 +13,8 @@ puts the data in the fs_db database.
 
 import csv
 import MySQLdb
+import time
+import StringIO
 
 
 # helper functions
@@ -26,17 +28,45 @@ def clean(esc_str):
             new_str.append(char)
     return ''.join(new_str)
     
+def convert_time(secs):
+    time_str = ""
+    hours = secs / 3600
+    if hours > 0:
+        time_str += (str(hours)+" hours, ")
+    minutes = (secs % 3600) / 60
+    if hours > 0 or minutes > 0:
+        time_str += (str(minutes)+" minutes, ")
+    seconds = secs % 60
+    time_str += (str(seconds)+" seconds")
+    return time_str
+    
 
-def tag_data():
+# primary function
+def tag_data(sub_dir):
     # extract data
     tag = []
-    with open("2016q1/tag.txt", "r") as f:
-        reader = csv.reader(f, delimiter = "\t")
+#    with open(sub_dir+"/tag.txt", "r") as f:
+#        data = f.read()
+#        new_data = data.replace('"', '')
+#        reader = csv.reader(new_data, delimiter = "\t")
+#        for row in reader:
+#            tag.append(row)
+    with open(sub_dir+"/tag.txt", 'rb') as f:
+        content = f.read().replace('"', '')
+        reader = csv.reader(StringIO.StringIO(content), delimiter = "\t", 
+                            doublequote=False)
         for row in reader:
             tag.append(row)
-            
+
+# IMPORTANT NOTE
+# Stray '"' was removed from the start of the 'doc' field at line 7501 of 
+# tag.txt in 2009q3, line 7204 of 2009q4 and line 6983 of 2010q1 to avoid 
+# complications when reading in data
+
+
     # print number of rows in data
-    print "Rows in file:", len(tag)
+    total_rows = len(tag)
+    print "Rows in file:", total_rows, "\n"
                 
     # arrange data by column
     header = tag[0]
@@ -53,7 +83,7 @@ def tag_data():
     for field in header:
         orgd[field] = cols[idx]
         idx += 1
-    
+
     # escape any "'" and remove extra backslashes
     for field in orgd:
         for idx in range(len(orgd[field])):
@@ -70,21 +100,26 @@ def tag_data():
                            db = "fs_db")
     cur = conn.cursor()
     
-    
     count = 1
+    start_time = time.time()
+    print "Entering data into database", "\n"
     for row in range(len(tag) - 1):
-        
+
         # insert data into 'docs' table
         doc = orgd["doc"][row]
-        cur.execute("INSERT INTO docs (doc) VALUES ('"+doc+"');")
+        if len(doc) > 2048:
+            doc = doc[0:2048]
 
+        cur.execute("INSERT INTO docs (doc) VALUES ('"+doc+"');")
+        
+        cur.execute("SELECT LAST_INSERT_ID();")
+        doc_id_ti = str(cur.fetchone()[0])
+       
+        
         # insert data into 'tag_info' table
         tag, version = orgd["tag"][row], orgd["version"][row]                      
         abstract, tlabel = orgd["abstract"][row], orgd["tlabel"][row]
         custom = orgd["custom"][row]
-        
-        cur.execute("SELECT LAST_INSERT_ID();")
-        doc_id_ti = str(cur.fetchone()[0])
         
         cur.execute("""INSERT INTO tag_info (tag, version, custom, abstract, 
         tlabel, doc_id_ti) VALUES (
@@ -110,9 +145,16 @@ def tag_data():
         cur.execute("""INSERT IGNORE INTO versions (version) VALUES (
         '"""+version+"');")
         
-        if count % 5000 == 0:
-            conn.commit()
-            print count, "rows committed"
+        if total_rows > 100:
+            if count % (total_rows / 100) == 0:
+                conn.commit()
+                print count, "rows committed"
+                cur_time = time.time()
+                elapsed_time = cur_time - start_time
+                total_time = elapsed_time * (float(total_rows) / float(count))
+                remain_time = total_time - elapsed_time
+                print "Elapsed time:", convert_time(int(elapsed_time))
+                print "Estimated time to completion:", convert_time(int(remain_time)), "\n"
             
         count += 1
             
@@ -121,5 +163,3 @@ def tag_data():
     
     conn.close()
         
-    
-tag_data()
