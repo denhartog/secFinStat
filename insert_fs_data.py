@@ -18,7 +18,7 @@ import num_data as num
 import pre_data as pre
 
 
-DIRS = ["2010q3"]
+DIRS = ["Specify desired quarter(s) here.  DIRS must remain a list."]
 FILES = ["sub.txt", "tag.txt", "num.txt", "pre.txt"]
     
 
